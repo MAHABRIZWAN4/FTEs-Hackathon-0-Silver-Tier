@@ -4,13 +4,16 @@ A collection of autonomous agent skills for task management, monitoring, human-i
 
 ## 🎯 Overview
 
-This project contains five production-ready agent skills that work together to create an autonomous AI employee system:
+This project contains production-ready agent skills that work together to create an autonomous AI employee system:
 
 1. **Task Planner Agent** - Analyzes markdown files and generates actionable plans
 2. **Vault Watcher Agent** - Monitors inbox for new files and triggers processing
 3. **Human Approval Agent** - Synchronous approval workflow for critical decisions
-4. **Email Sender Agent** - Sends emails via SMTP with environment credentials
-5. **LinkedIn Auto-Post Agent** - Automates LinkedIn posting with browser automation
+4. **Gmail Watcher Agent** - Monitors Gmail inbox, auto-replies, and saves emails to vault
+5. **Email Sender Agent** - Sends emails via SMTP with environment credentials
+6. **LinkedIn Auto-Post Agent** - Automates LinkedIn posting with browser automation
+7. **MCP Executor Agent** - Executes external actions and integrations
+8. **Silver Scheduler Agent** - Orchestrates automated background execution
 
 ## 📁 Project Structure
 
@@ -28,12 +31,15 @@ F:\Hackathon 0 Mahab\Silver Tier\
 │       │   └── SKILL.md
 │       ├── silver-scheduler/
 │       │   └── SKILL.md
-│       └── linkedin-post/
+│       ├── linkedin-post/
+│       │   └── SKILL.md
+│       └── gmail-watcher/
 │           └── SKILL.md
 ├── scripts/
 │   ├── task_planner.py          # Analyzes files & creates plans
 │   ├── watch_inbox.py           # Monitors inbox & triggers planner
 │   ├── request_approval.py      # Human-in-the-loop approval workflow
+│   ├── watch_gmail.py           # Gmail inbox monitor with auto-reply
 │   ├── send_email.py            # Email sender via SMTP
 │   ├── post_linkedin.py         # LinkedIn automation
 │   ├── mcp_executor.py          # External action executor
@@ -239,7 +245,80 @@ python scripts/request_approval.py \
 4. Save the file
 5. Script automatically detects and proceeds
 
-### 4. Email Sender Agent
+### 4. Gmail Watcher Agent
+
+**Purpose**: Continuously monitor Gmail inbox for new unread emails and automatically process them.
+
+**Setup**:
+```bash
+# Install dependencies
+pip install python-dotenv
+
+# Configure credentials in .env
+cp .env.example .env
+# Add your Gmail credentials:
+# EMAIL_ADDRESS=your.email@gmail.com
+# EMAIL_PASSWORD=your_app_password_here
+```
+
+**Gmail App Password Setup**:
+1. Enable 2-Factor Authentication on your Google account
+2. Visit: https://myaccount.google.com/apppasswords
+3. Generate an App Password for "Mail"
+4. Use the 16-character password in `.env` as `EMAIL_PASSWORD`
+
+**Usage**:
+```bash
+# Start Gmail watcher (runs continuously)
+python scripts/watch_gmail.py
+
+# Run in background (Windows)
+Start-Process python -ArgumentList "scripts/watch_gmail.py" -WindowStyle Hidden
+
+# Check logs
+tail -f logs/actions.log
+```
+
+**Features**:
+- Monitors Gmail inbox every 60 seconds via IMAP
+- Detects new unread emails automatically
+- Saves email details to `AI_Employee_Vault/Inbox/email_<timestamp>.md`
+- Sends professional auto-reply via SMTP
+- Marks emails as read after processing
+- Handles both plain text and HTML emails
+- Comprehensive error handling and logging
+- Production-ready with graceful shutdown
+
+**Auto-Reply Message**:
+```
+Thank you for your email. This is an automated response
+from AI Employee. I have received your message and will
+get back to you shortly.
+```
+
+**Email Storage Format**:
+Each email is saved as a markdown file in `AI_Employee_Vault/Inbox/`:
+```markdown
+# Email from sender@example.com
+
+**From:** sender@example.com
+**Subject:** Project Update
+**Date:** 2026-03-02 14:30:00
+**Received:** 2026-03-02 14:30:15
+
+---
+
+## Message
+
+[Email body content here...]
+
+---
+
+**Status:** Auto-reply sent ✓
+**Processed:** 2026-03-02 14:30:16
+```
+
+### 5. Email Sender Agent
 
 **Purpose**: Send emails via SMTP using environment credentials.
 
@@ -342,7 +421,23 @@ crontab -e
 
 See `SCHEDULER_SETUP.md` for detailed configuration, troubleshooting, and advanced options.
 
-### 6. LinkedIn Auto-Post Agent
+### 6. Gmail Watcher Integration
+
+The Gmail Watcher can work alongside the Vault Watcher to create a complete email-to-task pipeline:
+
+```
+Incoming Email → Gmail Watcher → Saved to Inbox/ → Vault Watcher → Task Planner → Plan Created
+```
+
+**Example Workflow**:
+1. Client sends email: "Need help with website bug"
+2. Gmail Watcher detects email, saves to `AI_Employee_Vault/Inbox/email_20260302_143015.md`
+3. Sends auto-reply to client
+4. Vault Watcher detects new file in Inbox/
+5. Task Planner analyzes email content
+6. Creates action plan in `Needs_Action/`
+
+### 7. LinkedIn Auto-Post Agent
 - Moves completed requests to `Done/` folder
 - Configurable timeout (default: 1 hour)
 
@@ -401,12 +496,21 @@ python scripts/post_linkedin.py "My post" --timeout 60000
 
 ## 🔄 Integrated Workflow
 
-Here's how all four skills work together:
+Here's how all the skills work together:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
+│  Option A: Manual Task Creation                            │
 │  1. User drops task file in Inbox/                         │
 │     Example: "implement_feature.md"                         │
+└────────────────┬────────────────────────────────────────────┘
+                 │
+┌────────────────┴────────────────────────────────────────────┐
+│  Option B: Email-to-Task Pipeline                          │
+│  1. Client sends email to monitored Gmail account          │
+│  2. Gmail Watcher detects unread email                     │
+│  3. Saves to Inbox/ as email_<timestamp>.md                │
+│  4. Sends auto-reply to sender                             │
 └────────────────┬────────────────────────────────────────────┘
                  │
                  ▼
@@ -514,7 +618,28 @@ def deploy_to_production(version):
 deploy_to_production("2.0.1")
 ```
 
-### Example 4: LinkedIn Integration
+### Example 4: Email-to-Task Pipeline
+
+```bash
+# Terminal 1: Start Gmail watcher
+python scripts/watch_gmail.py
+
+# Terminal 2: Start Vault watcher
+python scripts/watch_inbox.py
+
+# Now when someone emails you:
+# 1. Gmail Watcher detects email
+# 2. Saves to AI_Employee_Vault/Inbox/email_<timestamp>.md
+# 3. Sends auto-reply to sender
+# 4. Vault Watcher detects new file
+# 5. Task Planner creates action plan
+# 6. Plan appears in Needs_Action/
+
+# Check the logs to see the full pipeline
+tail -f logs/actions.log
+```
+
+### Example 5: LinkedIn Integration
 
 ```python
 # scripts/post_task_completion.py
@@ -611,6 +736,14 @@ All activities are logged to `logs/actions.log`:
 [2026-02-28 10:36:02] [SUCCESS] [EMAIL] Email sent successfully to recipient@example.com
 [2026-02-28 10:36:10] [INFO] [LINKEDIN] Starting LinkedIn post automation
 [2026-02-28 10:36:25] [SUCCESS] [LINKEDIN] Post published successfully
+[2026-02-28 10:40:00] [INFO] [GMAIL] Started monitoring inbox (interval: 60s)
+[2026-02-28 10:41:15] [DETECTED] New email from: client@example.com
+[2026-02-28 10:41:15] [SUBJECT] Need help with website bug
+[2026-02-28 10:41:15] [SAVED] Email saved to: email_20260228_104115.md
+[2026-02-28 10:41:16] [REPLY] Auto-reply sent to: client@example.com
+[2026-02-28 10:41:16] [MARKED] Email marked as read
+[2026-02-28 10:41:16] [SUCCESS] Email processed successfully
+[2026-02-28 10:50:00] [HEARTBEAT] Gmail watcher active - 3 emails processed
 ```
 
 **View logs**:
@@ -627,6 +760,7 @@ grep ERROR logs/actions.log
 # Filter by agent type
 grep APPROVAL logs/actions.log
 grep EMAIL logs/actions.log
+grep GMAIL logs/actions.log
 grep LINKEDIN logs/actions.log
 grep WATCHER logs/actions.log
 
@@ -695,6 +829,37 @@ grep EMAIL logs/actions.log | grep ERROR
 # Outlook: smtp.office365.com:587
 # Yahoo: smtp.mail.yahoo.com:587
 ```
+
+### Gmail Watcher Issues
+```bash
+# Gmail watcher not detecting emails
+# Check: Credentials in .env
+cat .env | grep EMAIL
+
+# Check: Using App Password (not regular password)
+# Generate at: https://myaccount.google.com/apppasswords
+
+# Test Gmail connection
+python -c "import imaplib; mail = imaplib.IMAP4_SSL('imap.gmail.com'); print('Connection OK')"
+
+# Check if watcher is running
+ps aux | grep watch_gmail
+
+# Check logs for errors
+grep GMAIL logs/actions.log | grep ERROR
+
+# Verify emails are unread in Gmail
+# Watcher only processes UNSEEN emails
+
+# Check inbox path exists
+ls -la AI_Employee_Vault/Inbox/
+
+# Test auto-reply functionality
+grep REPLY logs/actions.log
+
+# Check for authentication errors
+grep "Authentication failed" logs/actions.log
+```
 ```
 
 ### Human Approval Issues
@@ -737,11 +902,12 @@ grep "Method.*SUCCESS" logs/actions.log
 - **Task Planner**: `.claude/skills/task-planner/SKILL.md`
 - **Vault Watcher**: `.claude/skills/vault-watcher/SKILL.md`
 - **Human Approval**: `.claude/skills/human-approval/SKILL.md`
+- **Gmail Watcher**: `.claude/skills/gmail-watcher/SKILL.md` ⭐ NEW
 - **MCP Executor**: `.claude/skills/mcp-executor/SKILL.md`
 - **Silver Scheduler**: `.claude/skills/silver-scheduler/SKILL.md`
 - **LinkedIn Post**: `.claude/skills/linkedin-post/SKILL.md`
-- **Scheduler Setup**: `SCHEDULER_SETUP.md` ⭐ NEW
-- **Email Setup**: `EMAIL_SETUP.md` ⭐ NEW
+- **Scheduler Setup**: `SCHEDULER_SETUP.md`
+- **Email Setup**: `EMAIL_SETUP.md`
 - **LinkedIn Setup**: `LINKEDIN_SETUP.md`
 - **Colorful UI**: `COLORFUL_UI.md`
 - **Company Handbook**: `AI_Employee_Vault/Company_Handbook.md`
@@ -758,6 +924,7 @@ grep "Method.*SUCCESS" logs/actions.log
 ### Rate Limiting
 - Task Planner: No limits
 - Vault Watcher: 15s polling (configurable)
+- Gmail Watcher: 60s polling (configurable)
 - Human Approval: 10s polling (configurable)
 - LinkedIn: 5-10 posts/day recommended
 
@@ -769,6 +936,10 @@ grep "Method.*SUCCESS" logs/actions.log
 - Clean up old approval requests in Done/ folder
 - Check screenshot folder size (`logs/screenshots/`)
 - Verify HTML snapshots for debugging (`logs/page_source.html`)
+- Monitor Gmail watcher heartbeat messages
+- Check email storage in `AI_Employee_Vault/Inbox/`
+- Verify Gmail App Password validity
+- Review auto-reply message effectiveness
 
 ## 🚦 Status
 
@@ -777,6 +948,7 @@ grep "Method.*SUCCESS" logs/actions.log
 | Task Planner | ✅ Complete | Yes | None |
 | Vault Watcher | ✅ Complete | Yes | None |
 | Human Approval | ✅ Complete | Yes | None |
+| Gmail Watcher | ✅ Complete | Yes | python-dotenv |
 | Email Sender | ✅ Complete | Yes | python-dotenv |
 | LinkedIn Post | ✅ Complete | Yes (with setup) | playwright, python-dotenv |
 | MCP Executor | ✅ Complete | Yes | python-dotenv |
@@ -824,6 +996,23 @@ grep "Method.*SUCCESS" logs/actions.log
 - ✅ Priority levels (low/medium/high)
 - ✅ Detailed request context with frontmatter
 - ✅ Command-line and Python API usage
+
+### Gmail Watcher Agent
+- ✅ Real-time Gmail inbox monitoring (60-second polling)
+- ✅ IMAP connection for reading emails (SSL encrypted)
+- ✅ Detects new unread emails automatically
+- ✅ Extracts email metadata (From, Subject, Date, Body)
+- ✅ Handles both plain text and HTML emails
+- ✅ Saves emails to vault as markdown files
+- ✅ Professional auto-reply via SMTP (TLS encrypted)
+- ✅ Marks processed emails as read
+- ✅ Gmail App Password authentication
+- ✅ Comprehensive error handling and recovery
+- ✅ Heartbeat logging every 10 cycles
+- ✅ Graceful shutdown on Ctrl+C
+- ✅ Production-ready 24/7 operation
+- ✅ Minimal resource usage
+- ✅ Integration with vault watcher for email-to-task pipeline
 
 ### Email Sender Agent
 - ✅ SMTP email sending (Gmail, Outlook, Yahoo, custom servers)
@@ -1011,7 +1200,23 @@ else:
     print("Operation cancelled")
 ```
 
-### 3. With LinkedIn Integration
+### 3. With Gmail Integration
+```bash
+# Setup Gmail watcher
+cp .env.example .env
+# Edit .env with Gmail credentials (use App Password)
+
+# Start Gmail watcher
+python scripts/watch_gmail.py
+
+# Emails will be automatically:
+# - Detected and saved to Inbox/
+# - Auto-replied to sender
+# - Marked as read
+# - Available for task planning via Vault Watcher
+```
+
+### 4. With LinkedIn Integration
 ```bash
 # Setup LinkedIn
 cp .env.example .env
@@ -1036,6 +1241,11 @@ Potential extensions:
 - Create web dashboard
 - Add more social media platforms
 - Implement task scheduling
+- Gmail attachment handling and storage
+- Email filtering and categorization
+- Multiple email account support
+- Custom auto-reply templates
+- Email threading support
 
 ## 📞 Support
 
@@ -1051,6 +1261,9 @@ Check logs for detailed error information:
 2. Approval not detected → Verify "APPROVED" or "REJECTED" in file
 3. Task not processed → Check logs/processed.json for duplicates
 4. Watcher not detecting → Verify .md file extension
+5. Gmail watcher not working → Check App Password in .env
+6. Emails not detected → Verify emails are unread in Gmail
+7. Auto-reply not sent → Check SMTP credentials and connection
 
 ## 🎯 Project Goals Achieved
 
@@ -1068,4 +1281,4 @@ Check logs for detailed error information:
 
 **Built with ❤️ for Hackathon 0 Mahab - Silver Tier**
 
-**Last Updated**: February 28, 2026
+**Last Updated**: March 3, 2026
