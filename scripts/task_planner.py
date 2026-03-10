@@ -17,6 +17,11 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+import sys
+import io
+
+# Fix Windows Unicode encoding issues
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # Rich library for beautiful terminal output
 try:
@@ -26,7 +31,7 @@ try:
     from rich.progress import Progress, SpinnerColumn, TextColumn
     from rich import print as rprint
     RICH_AVAILABLE = True
-    console = Console()
+    console = Console(force_terminal=True, legacy_windows=False)
 except ImportError:
     RICH_AVAILABLE = False
     console = None

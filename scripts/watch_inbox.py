@@ -17,8 +17,12 @@ import os
 import time
 import subprocess
 import sys
+import io
 from datetime import datetime
 from pathlib import Path
+
+# Fix Windows Unicode encoding issues
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # Rich library for beautiful terminal output
 try:
@@ -29,7 +33,7 @@ try:
     from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
     from rich import print as rprint
     RICH_AVAILABLE = True
-    console = Console()
+    console = Console(force_terminal=True, legacy_windows=False)
 except ImportError:
     RICH_AVAILABLE = False
     console = None
@@ -182,6 +186,8 @@ def trigger_task_planner(filename):
             [sys.executable, TASK_PLANNER_SCRIPT],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=60  # 60 second timeout
         )
 

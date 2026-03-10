@@ -25,9 +25,13 @@ import json
 import argparse
 import signal
 import subprocess
+import io
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
+
+# Fix Windows Unicode encoding issues
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # Rich library for beautiful terminal output
 try:
@@ -36,7 +40,7 @@ try:
     from rich.table import Table
     from rich import print as rprint
     RICH_AVAILABLE = True
-    console = Console()
+    console = Console(force_terminal=True, legacy_windows=False)
 except ImportError:
     RICH_AVAILABLE = False
     console = None
@@ -330,6 +334,8 @@ class AIEmployeeScheduler:
                 [sys.executable, TASK_PLANNER_SCRIPT],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=120  # 2 minute timeout
             )
 
